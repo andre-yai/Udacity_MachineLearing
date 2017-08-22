@@ -9,8 +9,10 @@ aS'salary'
 p4
 aS'fraction_messages_to_poi'
 p5
-aS'restricted_stock'
+aS'long_term_incentive'
 p6
-aS'total_payments'
+aS'restricted_stock'
 p7
+aS'total_payments'
+p8
 a.
