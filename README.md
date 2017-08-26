@@ -42,5 +42,5 @@ It should run the script poi_id.py and then tester.py to evaluate our model. Thi
 6. Give at least 2 evaluation metrics and your average performance for each of them. Explain an interpretation of your metrics that says something human-understandable about your algorithm’s performance. [relevant rubric item: “usage of evaluation metrics”]
 
 	And also to validate I used the accuracy, reacall and prediction socer. Accuracy is the metric for the pecentage of correctness of the model.
-	In my final model I got Accuracy Score: 100% Recall Score: 100% Precision Score: 100%.
+	In my final model I got Accuracy Score: 84.7% Recall Score: 39.9% Precision Score: 28.8%.
 
