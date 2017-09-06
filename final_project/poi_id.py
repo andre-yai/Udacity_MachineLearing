@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+from __future__ import division
 import sys
 import pickle
 import pandas as pd
@@ -8,9 +9,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pprint import pprint
+sys.path.append("../tools/")
 from feature_format import featureFormat, targetFeatureSplit
 import tester
-from __future__ import division
 
 ### Task 1: Select what features you'll use.
 ### features_list is a list of strings, each of which is a feature name.
@@ -215,10 +216,10 @@ from sklearn.model_selection import train_test_split
 features_train, features_test, labels_train, labels_test =     train_test_split(features, labels, test_size=0.3, random_state=42)
 
 
-def test_model_tester(clf,mydatset,feature_list):
-"""
-    This function will test our model into the tester file
-"""
+def test_model_tester(clf,mydataset,features_list):
+    """
+        This function will test our model into the tester file
+    """
     tester.dump_classifier_and_data(clf, my_dataset, features_list)
     return tester.main()
 
@@ -227,14 +228,14 @@ from sklearn.naive_bayes import GaussianNB
 clf = GaussianNB()
 clf.fit(features_train,labels_train)
 predict = clf.predict(features_test)
-print(test_model_tester(clf,mydatset,feature_list))
+print(test_model_tester(clf,my_dataset,features_list))
 
 
 from sklearn.neighbors import KNeighborsClassifier
 clf = KNeighborsClassifier(n_neighbors=3)
 clf.fit(features_train,labels_train)
 predict = clf.predict(features_test)
-print(test_model_tester(clf,mydatset,feature_list));
+print(test_model_tester(clf,my_dataset,features_list));
 
 
 #Decision Tree
@@ -243,20 +244,20 @@ from sklearn.tree import DecisionTreeClassifier
 clf = DecisionTreeClassifier()
 clf.fit(features_train,labels_train)
 predict = clf.predict(features_test)
-print(test_model_tester(clf,mydatset,feature_list));
+print(test_model_tester(clf,my_dataset,features_list));
 
 
 from sklearn.ensemble import AdaBoostClassifier
 clf = AdaBoostClassifier(n_estimators=110)
 clf.fit(features_train,labels_train)
 predict = clf.predict(features_test)
-print(test_model_tester(clf,mydatset,feature_list));
+# print(test_model_tester(clf,my_dataset,features_list));
 
 from sklearn.ensemble import RandomForestClassifier
 clf = RandomForestClassifier(n_estimators=100)
 clf.fit(features_train,labels_train)
 predict = clf.predict(features_test)
-print(test_model_tester(clf,mydatset,feature_list));
+# print(test_model_tester(clf,my_dataset,features_list));
 
 
 ### Task 5: Tune your classifier to achieve better than .3 precision and recall 
@@ -300,19 +301,26 @@ def create_decision_tree(train_reduced,labels,run_grid_search=False):
     if run_grid_search:
         
         parameter_grid = {
-            'max_depth' : [4, 6, 8],
             'max_features': ['sqrt', 'auto', 'log2'],
-            'min_samples_split': [3, 10],
-            'min_samples_leaf': [1, 3, 10]
+            'min_samples_split': [2, 3, 10],
+            'min_samples_leaf': [1, 2, 3,4, 10]
         }
         clf = DecisionTreeClassifier()
         clf = generate_grid_search_model(clf,parameter_grid,train_reduced,labels)
     else: 
         parameters = {
-            'max_features': 'auto', 
-            'min_samples_split': 3,
-            'max_depth': 6,
-            'min_samples_leaf': 3
+          'class_weight':None,
+          'criterion':'gini', 
+          'max_depth':None,
+          'max_features':None, 
+          'max_leaf_nodes':None,
+          'min_impurity_split':1e-07, 
+          'min_samples_leaf':1,
+          'min_samples_split':2,
+          'min_weight_fraction_leaf':0.0,
+          'presort':False, 
+          'random_state':None, 
+           'splitter':'best'
         }
         clf = DecisionTreeClassifier(**parameters)
         clf.fit(train_reduced, labels)
@@ -338,15 +346,13 @@ def create_AdaBoost(train_reduced,labels,run_grid_search=False):
 
     return clf
 
-clf =  create_decision_tree(features,labels,run_grid_search=True)
-test_model_tester(clf,my_dataset,features_list)    
-
-clf = create_AdaBoost(features,labels,run_grid_search=True)
-test_model_tester(clf,my_dataset,features_list)    
+clfDT =  create_decision_tree(features,labels,run_grid_search=True)
+test_model_tester(clfDT,my_dataset,features_list)    
+   
 
 ### Task 6: Dump your classifier, dataset, and features_list so anyone can
 ### check your results. You do not need to change anything below, but make sure
 ### that the version of poi_id.py that you submit can be run on its own and
 ### generates the necessary .pkl files for validating your results.
 
-dump_classifier_and_data(clf, my_dataset, features_list)
+tester.dump_classifier_and_data(clfDT, my_dataset, features_list)
