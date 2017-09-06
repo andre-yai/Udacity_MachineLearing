@@ -2,63 +2,142 @@
 
 import sys
 import pickle
-sys.path.append("../tools/")
-
+import pandas as pd
+import matplotlib
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from pprint import pprint
 from feature_format import featureFormat, targetFeatureSplit
-from tester import dump_classifier_and_data
+import tester
 from __future__ import division
 
 ### Task 1: Select what features you'll use.
 ### features_list is a list of strings, each of which is a feature name.
 ### The first feature must be "poi".
-features_list = ['poi','salary'] # You will need to use more features
 
 ### Load the dictionary containing the dataset
-with open("final_project_dataset.pkl", "r") as data_file:
-    data_dict = pickle.load(data_file)
+data_dict = pickle.load(open("../final_project/final_project_dataset.pkl", "r") )
+
+eron_data = pd.DataFrame.from_dict(data_dict, orient = 'index')
 
 
-### Task 2: Remove outliers
-### Task 3: Create new feature(s)
+### Treating Missing Data 
+def PercentageMissin(Dataset):
+    """this function will return the percentage of missing values in a dataset """
+    if isinstance(Dataset,pd.DataFrame):
+        adict={} #a dictionary conatin keys columns names and values percentage of missin value in the columns
+        for feature in Dataset.columns:
+            count_nan_feature = 0;
+            for feature_row in Dataset[feature]:
+                if(feature_row == 'NaN'):
+                    count_nan_feature += 1  
+            adict[feature]=(count_nan_feature*100)/len(Dataset[feature])
+        return pd.DataFrame(adict,index=['% of missing'],columns=adict.keys())
+    else:
+        raise TypeError("can only be used with panda dataframe")
+
+print("Ranking of Missing Data")
+print(PercentageMissin(eron_data).mean().sort_values(ascending=False))
+
+
+payment_fields =['poi','salary','bonus', 'long_term_incentive', 'deferred_income', 'deferral_payments',
+            'loan_advances', 'other','expenses', 'director_fees','total_payments']
+stock_fields =['poi','exercised_stock_options','restricted_stock','restricted_stock_deferred','total_stock_value']
+email_fields =['to_messages','from_messages','from_poi_to_this_person','from_this_person_to_poi','shared_receipt_with_poi']
+
+## Filling missing Data
+
+eron_data.loc[:,payment_fields] = eron_data.loc[:,payment_fields].replace('NaN', 0)
+eron_data.loc[:,stock_fields] = eron_data.loc[:,stock_fields].replace('NaN',0) 
+
+eron_poi = eron_data[eron_data.poi == 1]
+eron_non_poi = eron_data[eron_data.poi == 0]
+
+from sklearn.preprocessing import Imputer
+
+imp = Imputer(missing_values='NaN', strategy = 'mean', axis=0)
+
+eron_poi.loc[:, email_fields] = imp.fit_transform(eron_poi.loc[:,email_fields]);
+eron_non_poi.loc[:, email_fields] = imp.fit_transform(eron_non_poi.loc[:,email_fields]);
+
+eron_data = eron_poi.append(eron_non_poi)
+
+### Task 2: Treat wrong fields
+
+eron_data[eron_data[payment_fields[1:-1]].sum(axis='columns') != eron_data['total_payments']][payment_fields + ['total_payments']]
+eron_data[eron_data[stock_fields[1:-1]].sum(axis='columns') != eron_data['total_stock_value']][stock_fields+['total_stock_value']]
+
+# Treating Belfer Robert
+eron_data.loc['BELFER ROBERT','deffered_income'] = -102500
+eron_data.loc['BELFER ROBERT','defferral_payments'] = 0
+eron_data.loc['BELFER ROBERT','expenses'] = 3285
+eron_data.loc['BELFER ROBERT','director_fees'] = 102500
+eron_data.loc['BELFER ROBERT','total_payments'] = 3285
+
+eron_data.loc['BELFER ROBERT','exercised_stock_options'] = 0
+eron_data.loc['BELFER ROBERT','restricted_stock'] = 44093
+eron_data.loc['BELFER ROBERT','restricted_stock_deferred'] = -44093
+eron_data.loc['BELFER ROBERT','total_stock_value'] = 0
+
+eron_data.loc['BELFER ROBERT'][payment_fields+stock_fields]
+
+# Treating BHATNAGAR SANJAY
+eron_data.loc['BHATNAGAR SANJAY','other'] = 0
+eron_data.loc['BHATNAGAR SANJAY','expenses'] = 137864
+eron_data.loc['BHATNAGAR SANJAY','director_fees'] = 0
+eron_data.loc['BHATNAGAR SANJAY','total_payments'] = 137864
+
+eron_data.loc['BHATNAGAR SANJAY','exercised_stock_options'] = 15456290
+eron_data.loc['BHATNAGAR SANJAY','restricted_stock'] = 2604490
+eron_data.loc['BHATNAGAR SANJAY','restricted_stock_deferred'] = -2604490
+eron_data.loc['BHATNAGAR SANJAY','total_stock_value'] = 15456290
+
+eron_data.loc['BHATNAGAR SANJAY'][payment_fields+stock_fields]
+
+
+### Task 3: Remove outliers.
+
+# According to the pdf and the data_dict we have some aggregate row. They are "Total" and "THE TRAVEL AGENCY IN THE PARK". So lets remove them.
+eron_data = eron_data.drop(["TOTAL","THE TRAVEL AGENCY IN THE PARK"])
+
+# Lets see those with rows with more outliers. To do so we will see the rows that stays less than 25% of the data
+# and those with greather than 75%.
+outliers = eron_data.quantile(.5) + 1.5 * (eron_data.quantile(.75)-eron_data.quantile(.25))
+outlier_pd = pd.DataFrame((eron_data[1:] > outliers[1:]).sum(axis = 1), columns = ['# of outliers']).    sort_values('# of outliers',  ascending = [0]).head(7)
+outlier_pd
+
+# We will remove those with more outliers that are not poi.
+eron_data_clean = eron_data.drop(['FREVERT MARK A','WHALLEY LAWRENCE G','LAVORATO JOHN J','KEAN STEVEN J'])
+
+
+
+### Task 4: Selecting features that I will use
+
+## With some analysis I will remove from my analysis the fields.
+## advances,director_fees, restricted_stock_deferred and email_address
+
+features_list = [
+    'poi', 'to_messages','from_messages', 'from_poi_to_this_person','from_this_person_to_poi', 
+    'salary','deferral_payments', 'other','total_payments','bonus', 
+    'total_stock_value', 'shared_receipt_with_poi', 'long_term_incentive',
+    'exercised_stock_options','deferred_income', 'expenses', 'restricted_stock']
+
+# In the featureFormat it will treat the missing values giving them a 0  value
+eron_data = eron_data[features_list]
+data = eron_data
+
+
+### Task 5: Create new feature(s)
 ### Store to my_dataset for easy export below.
-my_dataset = data_dict
-del data_dict["TOTAL"]
+
+eron_data['fraction_messages_to_poi'] =eron_data['from_this_person_to_poi']/eron_data['from_messages']
+eron_data['fraction_messages_from_poi'] = eron_data['from_poi_to_this_person']/eron_data['to_messages']
 
 
-def compute_fraction_poi_total_messages(poi_messages, total_messages):
-    fraction_messages = 0.
-    
-    if(poi_messages !='NaN' and total_messages != 'NaN'):
-        fraction_messages = poi_messages/total_messages
-    
-    return fraction_messages
-
-def compute_fraction_from_poi_to_person(person_data):
-
-    qtd_messages_total = person_data['to_messages']
-    qtd_messages_from_poi = person_data['from_poi_to_this_person']
-    fraction_messages_from_poi = compute_fraction_poi_total_messages(qtd_messages_from_poi,qtd_messages_total)
-    
-    return fraction_messages_from_poi
-
-def compute_fraction_from_person_to_poi(person_data):
-    
-    qtd_messages_to_total = person_data['from_messages']
-    qtd_messages_to_poi = person_data['from_this_person_to_poi']
-    fraction_messages_to_poi = compute_fraction_poi_total_messages( qtd_messages_to_poi, qtd_messages_to_total)
-    
-    return fraction_messages_to_poi
+print(eron_data.loc['BANNANTINE JAMES M'])
 
 
-feature_list = data_dict.values()[0].keys()
-for person_name in my_dataset:
-    person_data = my_dataset[person_name]
-    person_data["fraction_messages_from_poi"] = compute_fraction_from_poi_to_person(person_data);
-    person_data["fraction_messages_to_poi"] = compute_fraction_from_person_to_poi(person_data);
-    print(person_data["fraction_messages_from_poi"],person_data["fraction_messages_to_poi"])
-### Extract features and labels from dataset for local testing
-data = featureFormat(my_dataset, features_list, sort_keys = True)
-labels, features = targetFeatureSplit(data)
 
 new_features = ["fraction_messages_from_poi","fraction_messages_to_poi"]
 
@@ -66,53 +145,96 @@ for feature_name in new_features:
     if feature_name  not in features_list:
         features_list.append(feature_name)
 
-### Task 4: Try a varity of classifiers
-### Please name your classifier clf for easy export below.
-### Note that if you want to do PCA or other multi-stage operations,
-### you'll need to use Pipelines. For more info:
-### http://scikit-learn.org/stable/modules/pipeline.html
 
-my_data = featureFormat(my_dataset, features_list, sort_keys = True)
-labels, features = targetFeatureSplit(my_data)
 
-# Train and test
-from sklearn.model_selection import train_test_split
-features_train, features_test, labels_train, labels_test = \
-    train_test_split(features, labels, test_size=0.3, random_state=42)
+### plot new features
+fraction_list = ['poi','fraction_messages_from_poi','fraction_messages_to_poi']
+data_fraction = eron_data[fraction_list]
 
-#Function that will help to compute metrics.
-from sklearn.metrics import accuracy_score,precision_score,recall_score
+data_fraction_poi = data_fraction[data_fraction['poi'] == 1]
+data_fraction_non_poi = data_fraction[data_fraction['poi'] == 0]
 
-def compute_metrics(predict,labels_test):
+ax = data_fraction_poi.plot(kind='scatter', x='fraction_messages_from_poi', y='fraction_messages_to_poi',
+             color='DarkRed', label='POI', marker="*");
+data_fraction_non_poi.plot(kind='scatter', x='fraction_messages_from_poi', y='fraction_messages_to_poi',
+             color='DarkBlue', label='Non POI',ax=ax);
 
-    accuracy = accuracy_score(predict,labels_test);
-    recall = recall_score(predict,labels_test);
-    precision = precision_score(predict,labels_test);
+plt.ylabel("From this person to Poi")
+plt.xlabel('From Poi to this person')
+plt.show()
 
-    print "Accuracy Score: {}%".format(accuracy) + " Recall Score: {}%".format(recall) + " Precision Score: {}%".format(precision);
+
+# Perform features scaling
+from sklearn.preprocessing import scale
+def get_mydataset(df):
+    
+    scaled_df = df.copy()
+    scaled_df.iloc[:,1:] = scale(scaled_df.iloc[:,1:])
+    my_dataset = scaled_df.to_dict(orient='index')
+
+    return my_dataset
+
+my_dataset = get_mydataset(eron_data)
+
+
+## Feature selection 
+
+data = featureFormat(my_dataset, features_list, sort_keys = True)
+labels, features = targetFeatureSplit(data)
+features = np.array(features)
 
 # Feature selection - selectionkbest, select percentile,lasso regression
 from sklearn.feature_selection import SelectPercentile,SelectKBest,chi2
 
-selector = SelectKBest(k=10)
+selector = SelectKBest(k=5)
 new_data = selector.fit_transform(features,labels)
 scores_KB = selector.scores_
 
 print("Final shape of parameters",new_data.shape)
 print("Feature scores:",selector.scores_)
-                     
-# Provided to give you a starting point. Try a variety of classifiers.                            
+                        
+import numpy as np
+
+scores = selector.scores_
+print(scores)
+indices = np.argsort(scores)[::-1]
+print(indices)
+print 'Feature Ranking'
+for i in range(len(scores)-1): 
+    print "{} feature {} ({})".format(i+1,features_list[indices[i]+1],scores[indices[i]])
+
+### Task 6: Try a varity of classifiers
+### Please name your classifier clf for easy export below.
+### Note that if you want to do PCA or other multi-stage operations,
+### you'll need to use Pipelines. For more info:
+### http://scikit-learn.org/stable/modules/pipeline.html
+
+
+# Train and test
+from sklearn.model_selection import train_test_split
+features_train, features_test, labels_train, labels_test =     train_test_split(features, labels, test_size=0.3, random_state=42)
+
+
+def test_model_tester(clf,mydatset,feature_list):
+"""
+    This function will test our model into the tester file
+"""
+    tester.dump_classifier_and_data(clf, my_dataset, features_list)
+    return tester.main()
+
+## Gaussian Model
 from sklearn.naive_bayes import GaussianNB
 clf = GaussianNB()
 clf.fit(features_train,labels_train)
 predict = clf.predict(features_test)
-compute_metrics(predict,labels_test);
+print(test_model_tester(clf,mydatset,feature_list))
+
 
 from sklearn.neighbors import KNeighborsClassifier
 clf = KNeighborsClassifier(n_neighbors=3)
 clf.fit(features_train,labels_train)
 predict = clf.predict(features_test)
-compute_metrics(predict,labels_test);
+print(test_model_tester(clf,mydatset,feature_list));
 
 
 #Decision Tree
@@ -121,20 +243,20 @@ from sklearn.tree import DecisionTreeClassifier
 clf = DecisionTreeClassifier()
 clf.fit(features_train,labels_train)
 predict = clf.predict(features_test)
-compute_metrics(predict,labels_test);
+print(test_model_tester(clf,mydatset,feature_list));
 
 
 from sklearn.ensemble import AdaBoostClassifier
 clf = AdaBoostClassifier(n_estimators=110)
 clf.fit(features_train,labels_train)
 predict = clf.predict(features_test)
-compute_metrics(predict,labels_test);
+print(test_model_tester(clf,mydatset,feature_list));
 
 from sklearn.ensemble import RandomForestClassifier
 clf = RandomForestClassifier(n_estimators=100)
 clf.fit(features_train,labels_train)
 predict = clf.predict(features_test)
-compute_metrics(predict,labels_test);
+print(test_model_tester(clf,mydatset,feature_list));
 
 
 ### Task 5: Tune your classifier to achieve better than .3 precision and recall 
@@ -172,6 +294,31 @@ def generate_grid_search_model(model,parameters,train_reduced,labels):
     
     return model
 
+
+def create_decision_tree(train_reduced,labels,run_grid_search=False):
+    
+    if run_grid_search:
+        
+        parameter_grid = {
+            'max_depth' : [4, 6, 8],
+            'max_features': ['sqrt', 'auto', 'log2'],
+            'min_samples_split': [3, 10],
+            'min_samples_leaf': [1, 3, 10]
+        }
+        clf = DecisionTreeClassifier()
+        clf = generate_grid_search_model(clf,parameter_grid,train_reduced,labels)
+    else: 
+        parameters = {
+            'max_features': 'auto', 
+            'min_samples_split': 3,
+            'max_depth': 6,
+            'min_samples_leaf': 3
+        }
+        clf = DecisionTreeClassifier(**parameters)
+        clf.fit(train_reduced, labels)
+
+    return clf
+
 def create_AdaBoost(train_reduced,labels,run_grid_search=False):
     
     if run_grid_search:
@@ -190,8 +337,13 @@ def create_AdaBoost(train_reduced,labels,run_grid_search=False):
         clf.fit(train_reduced, labels)
 
     return clf
-    
+
+clf =  create_decision_tree(features,labels,run_grid_search=True)
+test_model_tester(clf,my_dataset,features_list)    
+
 clf = create_AdaBoost(features,labels,run_grid_search=True)
+test_model_tester(clf,my_dataset,features_list)    
+
 ### Task 6: Dump your classifier, dataset, and features_list so anyone can
 ### check your results. You do not need to change anything below, but make sure
 ### that the version of poi_id.py that you submit can be run on its own and
