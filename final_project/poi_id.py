@@ -9,6 +9,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pprint import pprint
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.preprocessing import scale
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.feature_selection import SelectPercentile,SelectKBest,chi2
+import numpy as np
+
+
 sys.path.append("../tools/")
 from feature_format import featureFormat, targetFeatureSplit
 import tester
@@ -20,6 +29,7 @@ import tester
 ### Load the dictionary containing the dataset
 data_dict = pickle.load(open("../final_project/final_project_dataset.pkl", "r") )
 
+## Transforming data dictionary to pandas data Frame
 eron_data = pd.DataFrame.from_dict(data_dict, orient = 'index')
 
 
@@ -111,7 +121,15 @@ outlier_pd
 # We will remove those with more outliers that are not poi.
 eron_data_clean = eron_data.drop(['FREVERT MARK A','WHALLEY LAWRENCE G','LAVORATO JOHN J','KEAN STEVEN J'])
 
+# Reamove NaN Fields
+nan_pd =pd.DataFrame((eron_data == 0).astype(int).sum(axis=1), columns = ['# of NaN']).\
+sort_values('# of NaN',  ascending = [0]).head(7)
+nan_pd
 
+print(data_dict['LOCKHART EUGENE E'])
+
+eron_data = eron_data.drop(['LOCKHART EUGENE E'])
+del data_dict['LOCKHART EUGENE E']
 
 ### Task 4: Selecting features that I will use
 
@@ -128,25 +146,79 @@ features_list = [
 eron_data = eron_data[features_list]
 data = eron_data
 
+## Auxiliar Functions
+
+def convert_dataframe_into_dataset(df):
+    """
+        Convert Pandas DataFarme to Dataset.
+    """
+    scaled_df = df.copy()
+    scaled_df.iloc[:,1:] = scale(scaled_df.iloc[:,1:])
+    my_dataset = scaled_df.to_dict(orient='index')
+
+    return my_dataset
+
+def test_model_tester(clf,my_dataset,featurs_list):
+    """
+        This function will test our model into the tester file
+    """
+    tester.dump_classifier_and_data(clf, my_dataset, features_list)
+    return tester.main()
+
+def divide_dataset_into_features_labels(my_dataset,features_list):
+    """
+        Divide Dataset into features and labels
+    """
+    data = featureFormat(my_dataset, features_list, sort_keys = True)
+    labels, features = targetFeatureSplit(data)
+    return [labels, features]
+
+class DecisionTree:
+    
+    def __init__(self,features_train, features_test, labels_train):
+        """
+            Generate Model
+        """
+        self.clf = DecisionTreeClassifier()
+        self.fit(features_train, labels_train)
+        self.predict(features_test)
+        
+    def fit(self,features,labels):
+        """
+            Fit model
+        """
+        return self.clf.fit(features,labels)
+    
+    def predict(self,features_test):
+        """
+            Predict model
+        """
+        return self.clf.predict(features_test)
+    
+
+# test our model
+my_dataset = convert_dataframe_into_dataset(eron_data)
+[labels, features] = divide_dataset_into_features_labels(my_dataset,features_list)
+features_train, features_test, labels_train, labels_test = train_test_split(features,\
+                                                                            labels, test_size=0.3, random_state=42)
+
+## Test our data set and see the performace of it.
+clf = DecisionTree(features_train, features_test, labels_train)
+print(test_model_tester(clf,my_dataset,features_list));
 
 ### Task 5: Create new feature(s)
 ### Store to my_dataset for easy export below.
 
-eron_data['fraction_messages_to_poi'] =eron_data['from_this_person_to_poi']/eron_data['from_messages']
+eron_data['fraction_messages_to_poi'] = eron_data['from_this_person_to_poi']/eron_data['from_messages']
 eron_data['fraction_messages_from_poi'] = eron_data['from_poi_to_this_person']/eron_data['to_messages']
 
-
 print(eron_data.loc['BANNANTINE JAMES M'])
-
-
 
 new_features = ["fraction_messages_from_poi","fraction_messages_to_poi"]
 
 for feature_name in new_features:
     if feature_name  not in features_list:
         features_list.append(feature_name)
-
-
 
 ### plot new features
 fraction_list = ['poi','fraction_messages_from_poi','fraction_messages_to_poi']
@@ -164,38 +236,26 @@ plt.ylabel("From this person to Poi")
 plt.xlabel('From Poi to this person')
 plt.show()
 
+# test our model
+my_dataset = convert_dataframe_into_dataset(eron_data)
+[labels, features] = divide_dataset_into_features_labels(my_dataset,features_list)
+features_train, features_test, labels_train, labels_test = train_test_split(features,\
+                                                                            labels, test_size=0.3, random_state=42)
 
-# Perform features scaling
-from sklearn.preprocessing import scale
-def get_mydataset(df):
-    
-    scaled_df = df.copy()
-    scaled_df.iloc[:,1:] = scale(scaled_df.iloc[:,1:])
-    my_dataset = scaled_df.to_dict(orient='index')
-
-    return my_dataset
-
-my_dataset = get_mydataset(eron_data)
-
+## Test our data set and see the performace of it.
+clf = DecisionTree(features_train, features_test, labels_train)
+print(test_model_tester(clf,my_dataset,features_list))
 
 ## Feature selection 
 
-data = featureFormat(my_dataset, features_list, sort_keys = True)
-labels, features = targetFeatureSplit(data)
-features = np.array(features)
-
 # Feature selection - selectionkbest, select percentile,lasso regression
-from sklearn.feature_selection import SelectPercentile,SelectKBest,chi2
-
-selector = SelectKBest(k=5)
-new_data = selector.fit_transform(features,labels)
+selector = SelectKBest(k=8)
+features = selector.fit_transform(features,labels)
 scores_KB = selector.scores_
 
-print("Final shape of parameters",new_data.shape)
+print("Final shape of parameters",features.shape)
 print("Feature scores:",selector.scores_)
                         
-import numpy as np
-
 scores = selector.scores_
 print(scores)
 indices = np.argsort(scores)[::-1]
@@ -203,6 +263,9 @@ print(indices)
 print 'Feature Ranking'
 for i in range(len(scores)-1): 
     print "{} feature {} ({})".format(i+1,features_list[indices[i]+1],scores[indices[i]])
+
+features_list = ['poi','bonus','salary','fraction_messages_to_poi','total_stock_value','exercised_stock_options',\
+                 'shared_receipt_with_poi','deferred_income','from_poi_to_this_person']
 
 ### Task 6: Try a varity of classifiers
 ### Please name your classifier clf for easy export below.
@@ -212,53 +275,11 @@ for i in range(len(scores)-1):
 
 
 # Train and test
-from sklearn.model_selection import train_test_split
 features_train, features_test, labels_train, labels_test =     train_test_split(features, labels, test_size=0.3, random_state=42)
 
-
-def test_model_tester(clf,mydataset,features_list):
-    """
-        This function will test our model into the tester file
-    """
-    tester.dump_classifier_and_data(clf, my_dataset, features_list)
-    return tester.main()
-
-## Gaussian Model
-from sklearn.naive_bayes import GaussianNB
-clf = GaussianNB()
-clf.fit(features_train,labels_train)
-predict = clf.predict(features_test)
-print(test_model_tester(clf,my_dataset,features_list))
-
-
-from sklearn.neighbors import KNeighborsClassifier
-clf = KNeighborsClassifier(n_neighbors=3)
-clf.fit(features_train,labels_train)
-predict = clf.predict(features_test)
-print(test_model_tester(clf,my_dataset,features_list));
-
-
 #Decision Tree
-from sklearn.tree import DecisionTreeClassifier
-
-clf = DecisionTreeClassifier()
-clf.fit(features_train,labels_train)
-predict = clf.predict(features_test)
-print(test_model_tester(clf,my_dataset,features_list));
-
-
-from sklearn.ensemble import AdaBoostClassifier
-clf = AdaBoostClassifier(n_estimators=110)
-clf.fit(features_train,labels_train)
-predict = clf.predict(features_test)
-# print(test_model_tester(clf,my_dataset,features_list));
-
-from sklearn.ensemble import RandomForestClassifier
-clf = RandomForestClassifier(n_estimators=100)
-clf.fit(features_train,labels_train)
-predict = clf.predict(features_test)
-# print(test_model_tester(clf,my_dataset,features_list));
-
+clf = DecisionTree(features_train, features_test, labels_train)
+print(test_model_tester(clf,my_dataset,features_list))
 
 ### Task 5: Tune your classifier to achieve better than .3 precision and recall 
 ### using our testing script. Check the tester.py script in the final project
@@ -323,25 +344,6 @@ def create_decision_tree(train_reduced,labels,run_grid_search=False):
            'splitter':'best'
         }
         clf = DecisionTreeClassifier(**parameters)
-        clf.fit(train_reduced, labels)
-
-    return clf
-
-def create_AdaBoost(train_reduced,labels,run_grid_search=False):
-    
-    if run_grid_search:
-        
-        parameter_grid = {
-            'n_estimators': [100,110,120,130]
-        }
-        clf = AdaBoostClassifier()
-        clf = generate_grid_search_model(clf,parameter_grid,train_reduced,labels)
-    else: 
-        parameters = {
-            'n_estimators': 130
-        }
-
-        clf = AdaBoostClassifier(**parameters)
         clf.fit(train_reduced, labels)
 
     return clf
