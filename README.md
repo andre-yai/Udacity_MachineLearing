@@ -25,7 +25,18 @@ It should run the script poi_id.py and then tester.py to evaluate our model. Thi
 
 	Then I scale my parameters to reduce the range the parameters. It was mosst useful in the financial features were we have large numbers and a large range.  
 	
-	Then selected the features using SelectKBest with differents k (k = 5,7,8,9) and I noticed that the top 5 features were above 18% so I selected to keep with the k = 5. And the best paramenters I got was ['poi','bonus','salary','fraction_messages_to_poi','total_stock_value','exercised_stock_options'].
+	Then selected the features using SelectKBest with differents k (k = 5,7,8,9) and I got the following results.
+
+	k = 5  => Accuracy: 0.90750	 Precision: 0.70108	 Recall: 0.61450	F1: 0.65494
+	k = 7  => Accuracy: 0.90507	 Precision: 0.69226	 Recall: 0.60400	F1: 0.64513
+	k = 8  => Accuracy: 0.90736  Precision: 0.70028	 Recall: 0.61450	F1: 0.65459
+	k = 9  => Accuracy: 0.90579	 Precision: 0.69140	 Recall: 0.61500	F1: 0.65097 
+
+	I tested k = 5 to 9 and got that the best results was with 5. So I decided to use a k = 5.
+	And also noticed that the top 5 features had a score above 18% in the model. 
+	And the best paramenters I got for k = 5 was ['poi','bonus','salary','fraction_messages_to_poi','total_stock_value','exercised_stock_options'].
+
+
 
 
 3. What algorithm did you end up using? What other one(s) did you try? How did model performance differ between algorithms? [relevant rubric item: “pick an algorithm”]
