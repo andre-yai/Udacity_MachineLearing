@@ -249,23 +249,26 @@ print(test_model_tester(clf,my_dataset,features_list))
 ## Feature selection 
 
 # Feature selection - selectionkbest, select percentile,lasso regression
-selector = SelectKBest(k=8)
+selector = SelectKBest(k=5)
 features = selector.fit_transform(features,labels)
 scores_KB = selector.scores_
 
 print("Final shape of parameters",features.shape)
 print("Feature scores:",selector.scores_)
                         
-scores = selector.scores_
-print(scores)
-indices = np.argsort(scores)[::-1]
-print(indices)
-print 'Feature Ranking'
-for i in range(len(scores)-1): 
-    print "{} feature {} ({})".format(i+1,features_list[indices[i]+1],scores[indices[i]])
+import numpy as np
 
-features_list = ['poi','bonus','salary','fraction_messages_to_poi','total_stock_value','exercised_stock_options',\
-                 'shared_receipt_with_poi','deferred_income','from_poi_to_this_person']
+d = {'feature': features_list[1:], 'score':  scores_KB}
+df = pd.DataFrame(data=d)
+df = df.sort_values(['score'],ascending=[False])
+print(df)
+
+ax = df.plot.bar(xticks=df.index)
+ax.set_xticklabels(df.feature)
+plt.show()
+
+
+features_list = ['poi','bonus','salary','fraction_messages_to_poi','total_stock_value','exercised_stock_options']
 
 ### Task 6: Try a varity of classifiers
 ### Please name your classifier clf for easy export below.
@@ -293,7 +296,7 @@ from sklearn.model_selection import StratifiedKFold,GridSearchCV
 
 def init_cross_validation(train_reduced, labels):
     
-    cross_validation = StratifiedKFold(n_splits=3)
+    cross_validation = StratifiedKFold(n_splits=10, random_state = 42)
     cross_validation.get_n_splits(train_reduced, labels)
     
     return cross_validation;
@@ -327,7 +330,7 @@ def create_decision_tree(train_reduced,labels,run_grid_search=False):
             'min_samples_leaf': [1, 2, 3,4, 10]
         }
         clf = DecisionTreeClassifier()
-        clf = generate_grid_search_model(clf,parameter_grid,train_reduced,labels)
+        clf = generate_grid_search_model(clf,parameter_grid,train_reduced,labels).best_estimator_
     else: 
         parameters = {
           'class_weight':None,
